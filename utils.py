@@ -1,3 +1,4 @@
+import json
 import os
 import numpy as np
 from keras.callbacks import TensorBoard
@@ -20,6 +21,15 @@ def display_image(*images, title='image display', col=None):
         plt.subplot(row, col, i + 1)
         plt.imshow(image, cmap='gray')
     plt.show()
+
+
+def save_trial_configs(trial_name, model_configs, train_configs, config_path='models/'):
+    configs = {
+        'model': model_configs,
+        'train': train_configs
+    }
+    with open(os.path.join(config_path, trial_name+'_config.json'), 'w') as fp:
+        json.dump(configs, fp)
 
 
 class Chart(TensorBoard):

@@ -6,7 +6,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.utils.generic_utils import to_list
 
 from nn.sequentials import SNet
-from utils import ensure_dir, Chart
+from utils import ensure_dir, Chart, save_trial_configs
 
 if "MACHINE_ROLE" in os.environ and os.environ['MACHINE_ROLE'] == 'trainer':
     IMAGE_ROOT = "/home/ethan/Pictures/cancer"
@@ -78,6 +78,13 @@ def train(
     opt = optimizers.Adam(lr=learning_rate)
     engine.model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['acc'])
 
+    train_configs = {
+        'learning_rate': learning_rate,
+        'epochs': epochs
+    }
+
+    trial_name = "{}-{}".format(engine.model_name, experiment_name)
+
     logdir = os.path.join('./logs', engine.model_name, experiment_name)
     train_chart = Chart(
         log_dir=os.path.join(logdir, 'train'),
@@ -131,7 +138,8 @@ def train(
                 # checkpointing towards the end of each epoch
                 if val_outs[1] > .92 and ep > 0 and steps_per_epoch - local_step < 100:
                     print('[info] saving intermediate model, accuracy: {:.2f}%'.format(val_outs[1] * 100))
-                    engine.save('models/{}{:.0f}_e{}.h5'.format(engine.base_model, val_outs[1] * 100, ep + 1))
+                    engine.save('models/{}_tmp_{:.0f}.h5'.format(trial_name, val_outs[1] * 100))
+                    save_trial_configs(trial_name, engine.get_configs(), train_configs)
 
             if global_steps % 10 == 0:
                 tock = datetime.now()
@@ -144,10 +152,10 @@ def train(
                 ))
                 tick = tock
 
-
     print('[info] training complete, saving model...')
     ensure_dir('models')
-    engine.save('models/{}.h5'.format(base_model))
+    engine.save('models/{}.h5'.format(trial_name))
+    save_trial_configs(trial_name, engine.get_configs(), train_configs)
 
 
 if __name__ == "__main__":
@@ -157,12 +165,12 @@ if __name__ == "__main__":
     train_params = {
         'image_size': image_size,
         'base_model': 'nasnet',
-        'layers': [512, 512],
+        'layers': [512, 256],
         'pretrained': True,
         'learning_rate': 0.0001,
         'keep_prob': .5,
         'l2_lambda': .001,
-        'epochs': 20,
+        'epochs': 6,
         'eval_steps': 50
     }
     train(

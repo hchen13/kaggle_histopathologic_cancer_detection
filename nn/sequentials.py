@@ -17,11 +17,22 @@ class SNet(Prototype):
 
     @property
     def model_name(self):
-        return "transfer[{base_model}]+fc{dense}+{pretrain}".format(
+        return "trans_{base_model}+fc{dense}+{pretrain}".format(
             base_model=self.base_model,
             dense=len(self.dense_layers),
             pretrain='pretrain' if self.pretrained else 'random_init'
         )
+
+    def get_configs(self):
+        configs = {
+            'base_model': self.base_model,
+            'pretrained': self.pretrained,
+            'dense_layers': self.dense_layers,
+            'image_shape': self.image_shape,
+            'keep_prob': self.keep_prob,
+            'l2_lambda': self.l2_lambda
+        }
+        return configs
 
     def _get_base_model(self):
         valid_models = {
