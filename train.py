@@ -128,6 +128,11 @@ def train(
                 )
                 display_on_chart(val_outs, valid_chart)
 
+                # checkpointing towards the end of each epoch
+                if val_outs[1] > .92 and ep > 0 and steps_per_epoch - local_step < 100:
+                    print('[info] saving intermediate model, accuracy: {:.2f}%'.format(val_outs[1] * 100))
+                    engine.save('models/{}{:.0f}_e{}.h5'.format(engine.base_model, val_outs[1] * 100, ep + 1))
+
             if global_steps % 10 == 0:
                 tock = datetime.now()
                 elapsed = (tock - tick) / 10
@@ -138,6 +143,7 @@ def train(
                     ((steps_per_epoch - local_step - 1) * elapsed).total_seconds() / 60
                 ))
                 tick = tock
+
 
     print('[info] training complete, saving model...')
     ensure_dir('models')

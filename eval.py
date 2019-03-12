@@ -1,47 +1,15 @@
-import glob
 import os
 
-import cv2
 import numpy as np
+import pandas as pd
 from keras.preprocessing.image import ImageDataGenerator
 
 from nn import Prototype
-import pandas as pd
 
 if "MACHINE_ROLE" in os.environ and os.environ['MACHINE_ROLE'] == 'trainer':
     IMAGE_ROOT = "/home/ethan/Pictures/cancer"
 else:
     IMAGE_ROOT = "/Users/ethan/datasets/kaggle_pathology"
-
-
-def test_data_generator(image_size):
-    batch_size = 32
-    print("[info] loading test images in batches of {}".format(batch_size))
-    test_dir = os.path.join(IMAGE_ROOT, 'test', 'test')
-    image_files = glob.glob(test_dir + '/*.tif')
-    print("{} images found, dividing into {} batches.".format(
-        len(image_files),
-        int(len(image_files) / batch_size)
-    ))
-    for b in range(0, len(image_files), batch_size):
-
-
-        if b > 3:
-            break
-
-
-        batch_files = image_files[b : b + batch_size]
-        image_list = []
-        for i, file in enumerate(batch_files):
-            img = cv2.imread(file)
-            if img.shape[:2] != (image_size, image_size):
-                img = cv2.resize(img, (image_size, image_size), interpolation=cv2.INTER_AREA)
-            image_list.append(img)
-        batch = np.array(image_list)
-        yield batch
-
-
-
 
 
 if __name__ == '__main__':
