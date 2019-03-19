@@ -16,6 +16,13 @@ class Prototype:
     def save(self, path):
         self.model.save(path)
 
+    def save_weights(self, path):
+        self.model.save_weights(path)
+
     def load(self, path):
         self.model = load_model(path)
         self.model._make_predict_function()
+
+    def load_weights(self, path):
+        assert self.model is not None
+        self.model.load_weights(path)

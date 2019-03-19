@@ -1,3 +1,5 @@
+import argparse
+import json
 import os
 
 import numpy as np
@@ -5,6 +7,8 @@ import pandas as pd
 from keras.preprocessing.image import ImageDataGenerator
 
 from nn import Prototype
+from nn.prototypes import ZPNet
+from utils import crop
 
 if "MACHINE_ROLE" in os.environ and os.environ['MACHINE_ROLE'] == 'trainer':
     IMAGE_ROOT = "/home/ethan/Pictures/cancer"
@@ -12,8 +16,8 @@ else:
     IMAGE_ROOT = "/Users/ethan/datasets/kaggle_pathology"
 
 
-if __name__ == '__main__':
-    image_size = 96
+def eval(engine, image_size):
+    # model_file = "models/trans_nasnet+fc2+pretrain-trial_4.h5"
     print('[info] preparing testing data for predictions...')
 
     idg = ImageDataGenerator(
@@ -35,7 +39,7 @@ if __name__ == '__main__':
         horizontal_flip=False,
         vertical_flip=False,
         rescale=1 / 255.0,
-        # preprocessing_function=lambda x: x / 255,
+        # preprocessing_function=crop,
         data_format=None
     )
     batches = idg.flow_from_directory(
@@ -43,13 +47,8 @@ if __name__ == '__main__':
         class_mode=None,
         color_mode='rgb',
         target_size=(image_size, image_size),
-        shuffle=False
+        shuffle=False,
     )
-
-    print('[info] loading nn model...')
-    model_file = "models/trained.h5"
-    engine = Prototype(image_size)
-    engine.load(model_file)
 
     print("[info] predicting...")
     preds = engine.model.predict_generator(
@@ -68,3 +67,29 @@ if __name__ == '__main__':
     }).set_index('id')
 
     submission.to_csv('submission.csv')
+
+
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    ap.add_argument('-m', '--model_file', required=True, help='path to model')
+    args = vars(ap.parse_args())
+
+    folder = args['model_file'].split('/')[0]
+    basename = args['model_file'].split('/')[1].split(".")[-2]
+
+    cfg_file = "{}_config.json".format(basename)
+    configs = json.load(open(os.path.join(folder, cfg_file)))
+    image_shape = configs['model']['image_shape']
+    image_size = image_shape[0]
+    if folder == 'weights':
+        configs['image_size'] = image_size
+        configs['model'].pop('image_shape', None)
+        engine = ZPNet(**configs['model'])
+        engine.create_model()
+        engine.load_weights(args['model_file'])
+    else:
+        image_shape = configs['model']['image_shape']
+        engine = Prototype(image_size)
+        engine.load(args['model_file'])
+
+    eval(engine, image_size)

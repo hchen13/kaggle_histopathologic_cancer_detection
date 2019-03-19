@@ -1,5 +1,6 @@
 logs/
 models/
+weights/
 *.pyc
 *.sh
 .DS_Store

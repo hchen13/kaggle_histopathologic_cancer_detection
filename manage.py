@@ -47,6 +47,8 @@ def create_validation_set(verbose=500):
     validation_size = 10000
     label_file = os.path.join(IMAGE_ROOT, 'train_labels.csv')
     label_index = pd.read_csv(label_file, engine='python')
+    from sklearn.utils import shuffle
+    label_index = shuffle(label_index)
     print("[info] preparing {} validation data...".format(validation_size))
 
     valid_files = glob.glob(VALID_DIR + '/*/*.tif')
@@ -55,13 +57,12 @@ def create_validation_set(verbose=500):
     if validation_size <= 0:
         print("There are sufficient amount of validation files, done!\n")
         return
-
     ensure_dir(VALID_DIR)
     validation_set = label_index[:validation_size]
     n = validation_set.shape[0]
     print("[info] moving {} images from train folder as validation set...".format(n))
     for i in range(n):
-        file_name = "{}.tif".format(validation_set['id'][i])
+        file_name = "{}.tif".format(validation_set.iloc[i]['id'])
         file_path = os.path.join(TRAIN_DIR, file_name)
         destination_path = os.path.join(VALID_DIR, file_name)
         os.rename(file_path, destination_path)

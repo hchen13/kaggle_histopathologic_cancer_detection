@@ -5,7 +5,7 @@ from keras import optimizers
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils.generic_utils import to_list
 
-from nn.sequentials import SNet
+from nn.prototypes import ZPNet
 from utils import ensure_dir, Chart, save_trial_configs
 
 if "MACHINE_ROLE" in os.environ and os.environ['MACHINE_ROLE'] == 'trainer':
@@ -13,8 +13,8 @@ if "MACHINE_ROLE" in os.environ and os.environ['MACHINE_ROLE'] == 'trainer':
 else:
     IMAGE_ROOT = "/Users/ethan/datasets/kaggle_pathology"
 
-TRAIN_DIR = os.path.join(IMAGE_ROOT, 'train')
-VALID_DIR = os.path.join(IMAGE_ROOT, 'valid')
+TRAIN_DIR = os.path.join(IMAGE_ROOT, 'training')
+VALID_DIR = os.path.join(IMAGE_ROOT, 'validation')
 
 def load(image_size, batch_size):
     print("[info] loading images...")
@@ -37,7 +37,7 @@ def load(image_size, batch_size):
         horizontal_flip=False,
         vertical_flip=False,
         rescale=1/255.0,
-        # preprocessing_function=lambda x: x / 255,
+        # preprocessing_function=crop,
         data_format=None
     )
     train_batches = idg.flow_from_directory(
@@ -59,22 +59,17 @@ def load(image_size, batch_size):
     return train_batches, valid_batches
 
 
-def train(
-        experiment_name, train_batches, valid_batches,
-        image_size, base_model, layers,
-        pretrained, learning_rate, keep_prob,
-        l2_lambda, epochs=10, eval_steps=50
-):
-    print("[info] constructing neural network for training...")
-    engine = SNet(
-        base_model=base_model,
-        dense_layers=layers,
-        pretrained=pretrained,
-        keep_prob=keep_prob,
-        l2_lambda=l2_lambda,
-        image_size=image_size
-    )
-    engine.create_model()
+def save_model(engine, model_name, weights_only=True):
+    folder = 'weights' if weights_only else 'models'
+    model_path = os.path.join(folder, model_name + '.h5')
+    if weights_only:
+        engine.save_weights(model_path)
+    else:
+        engine.save(model_path)
+
+
+def train(experiment_name, train_batches, valid_batches, engine, learning_rate, epochs=10, eval_steps=50):
+    print("[info] compiling optimizer...")
     opt = optimizers.Adam(lr=learning_rate)
     engine.model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['acc'])
 
@@ -84,8 +79,9 @@ def train(
     }
 
     trial_name = "{}-{}".format(engine.model_name, experiment_name)
+    print("[info] initializing training session, session name: {}".format(trial_name.upper()))
 
-    logdir = os.path.join('./logs', engine.model_name, experiment_name)
+    logdir = os.path.join('./logs/', engine.model_name, experiment_name)
     train_chart = Chart(
         log_dir=os.path.join(logdir, 'train'),
         histogram_freq=0,
@@ -121,25 +117,8 @@ def train(
         for local_step in range(steps_per_epoch):
             global_steps += 1
             batch_x, batch_y = next(data_gen)
+
             outs = engine.model.train_on_batch(batch_x, batch_y)
-
-            if global_steps % eval_steps == 0:
-                display_on_chart(outs, train_chart)
-
-                print("\tvalidating...")
-                val_outs = engine.model.evaluate_generator(
-                    val_data_gen,
-                    len(valid_batches),
-                    workers=0,
-                    verbose=1
-                )
-                display_on_chart(val_outs, valid_chart)
-
-                # checkpointing towards the end of each epoch
-                if val_outs[1] > .92 and ep > 0 and steps_per_epoch - local_step < 100:
-                    print('[info] saving intermediate model, accuracy: {:.2f}%'.format(val_outs[1] * 100))
-                    engine.save('models/{}_tmp_{:.0f}.h5'.format(trial_name, val_outs[1] * 100))
-                    save_trial_configs(trial_name, engine.get_configs(), train_configs)
 
             if global_steps % 10 == 0:
                 tock = datetime.now()
@@ -152,30 +131,65 @@ def train(
                 ))
                 tick = tock
 
+            if global_steps % eval_steps == 0:
+                display_on_chart(outs, train_chart)
+
+                print("\tvalidating...")
+                val_outs = engine.model.evaluate_generator(
+                    val_data_gen,
+                    len(valid_batches),
+                    workers=0,
+                    verbose=0
+                )
+                display_on_chart(val_outs, valid_chart)
+
+                val_acc = val_outs[1] * 100
+
+                # checkpointing towards the end of each epoch
+                if val_acc > 92:
+                    print('[info] saving intermediate model, accuracy: {:.2f}%'.format(val_acc))
+                    save_model(
+                        engine=engine,
+                        model_name='{}_tmp{:.0f}'.format(trial_name, val_acc),
+                        # weights_only=True
+                    )
+                    save_trial_configs(trial_name, engine.get_configs(), train_configs)
+
     print('[info] training complete, saving model...')
-    ensure_dir('models')
-    engine.save('models/{}.h5'.format(trial_name))
+    ensure_dir('weights')
+    save_model(
+        engine=engine,
+        model_name=trial_name
+        # weights_only=True
+    )
     save_trial_configs(trial_name, engine.get_configs(), train_configs)
 
 
 if __name__ == "__main__":
     image_size = 96
-    batch_size = 32
+    batch_size = 64
     train_batches, valid_batches = load(image_size=image_size, batch_size=batch_size)
+
+    print("[info] constructing neural network for training...")
+    engine = ZPNet(
+        base_models=['nasnet', 'vgg16'],
+        dense_layers=[2048],
+        pretrained=True,
+        keep_prob=.5,
+        l2_lambda=.02,
+        image_size=image_size
+    )
+    engine.create_model()
+
     train_params = {
-        'image_size': image_size,
-        'base_model': 'nasnet',
-        'layers': [512, 256],
-        'pretrained': True,
-        'learning_rate': 0.0001,
-        'keep_prob': .5,
-        'l2_lambda': .001,
-        'epochs': 6,
-        'eval_steps': 50
+        'learning_rate': 0.00007,
+        'epochs': 1,
+        'eval_steps': 100
     }
     train(
-        experiment_name='trial_3',
+        experiment_name='trial_1',
         train_batches=train_batches,
         valid_batches=valid_batches,
+        engine=engine,
         **train_params
     )

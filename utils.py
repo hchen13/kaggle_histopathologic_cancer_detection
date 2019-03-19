@@ -23,13 +23,19 @@ def display_image(*images, title='image display', col=None):
     plt.show()
 
 
-def save_trial_configs(trial_name, model_configs, train_configs, config_path='models/'):
+def crop(image, width=32):
+    origin_size = image.shape[0]
+    new = image[(origin_size - width) // 2: (origin_size + width) // 2, (origin_size - width) // 2: (origin_size + width) // 2, :]
+    return new
+
+
+def save_trial_configs(trial_name, model_configs, train_configs, config_path='weights/'):
     configs = {
         'model': model_configs,
         'train': train_configs
     }
     with open(os.path.join(config_path, trial_name+'_config.json'), 'w') as fp:
-        json.dump(configs, fp)
+        json.dump(configs, fp, indent=2)
 
 
 class Chart(TensorBoard):
@@ -45,13 +51,3 @@ class Chart(TensorBoard):
             summary_value.tag = name
             self.writer.add_summary(summary, num)
             self.writer.flush()
-
-    # def on_batch_end(self, num, logs=None):
-    #     loss = logs['loss']
-    #     acc = logs['acc']
-    #     self.write_log(['loss', 'acc'], [loss, acc], num)
-    #
-    # def on_epoch_end(self, epoch, logs=None):
-    #     loss = logs['val_loss']
-    #     acc = logs['val_acc']
-    #     self.write_log(['loss', 'acc'], [loss, acc], epoch)
