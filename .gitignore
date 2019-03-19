@@ -1,8 +1,10 @@
 logs/
 models/
 weights/
+.idea/
 *.pyc
 *.sh
 .DS_Store
 *.csv
-.idea/
+manage.py
+build_advanced_dataset.py
